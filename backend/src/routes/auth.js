@@ -37,6 +37,20 @@ router.get('/me', requireAuth, (req, res) => {
   res.json({ user: { id, username, name, role } });
 });
 
+router.post('/password', requireAuth, async (req, res, next) => {
+  try {
+    const currentPassword = String(req.body?.currentPassword || '');
+    const newPassword = String(req.body?.newPassword || '');
+    if (newPassword.length < 12 || newPassword.length > 256) return res.status(400).json({ error: 'Choose a new password with at least 12 characters' });
+    const user = await login(req.user.username, currentPassword);
+    if (!user) return res.status(400).json({ error: 'Current password is incorrect' });
+    await pool.execute('UPDATE users SET password_hash=? WHERE id=?', [await hashPassword(newPassword), req.user.id]);
+    const token = req.headers.cookie?.split(';').map(v => v.trim()).find(v => v.startsWith('hlb_session='))?.slice('hlb_session='.length);
+    if (token) await pool.execute('DELETE FROM sessions WHERE user_id=? AND token_hash<>?', [req.user.id, hashToken(token)]);
+    res.json({ ok: true });
+  } catch (error) { next(error); }
+});
+
 router.get('/users', requireAuth, allowRoles('admin','reception'), async (_req, res, next) => {
   try {
     const [users] = await pool.query('SELECT id,username,display_name AS name,role,active,created_at AS createdAt FROM users ORDER BY id');

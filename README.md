@@ -52,9 +52,15 @@ Authentication is cookie based (`hlb_session`, `HttpOnly`, `SameSite=Strict`, 12
 
 The API has no CORS middleware by design — it is meant to be reached through the Vite dev proxy or the nginx reverse proxy on the same origin.
 
+## Menu and orders
+
+Admin and reception users can open **Menu** from the prominent button near the top of the sidebar. Add menu items, assign them to **Lunch menu**, **Daily nasta**, or **Others**, and set each item's price in rupees. Ingredient usage per box can also be linked to inventory items.
+
+When creating a customer bill, choose a customer and menu items with quantities. The app uses saved menu prices to calculate line amounts, subtotal, discount, VAT when enabled, total, payments, and balance due. The customer and calculated total are saved with the order and shown on its invoice.
+
 ## Accounts
 
-There are no seeded or demo logins. The first administrator is created at API startup from `ADMIN_USERNAME` / `ADMIN_PASSWORD` (minimum 12 characters) in the environment. Every other account is created by an administrator in Settings → Accounts, with a temporary password handed over out of band.
+There are no seeded or demo logins. The first administrator is created at API startup from `ADMIN_USERNAME` / `ADMIN_PASSWORD` (minimum 12 characters) in the environment. Every other account is created by an administrator in **Login accounts**, with a temporary password handed over out of band. Admins can change their own password there by entering the current password and choosing a new passphrase of at least 12 characters. The environment password is only used to create the first administrator; changing it does not reset an existing account.
 
 | Role | Access |
 |---|---|

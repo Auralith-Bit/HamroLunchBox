@@ -72,4 +72,10 @@ There are no seeded or demo logins. The first administrator is created at API st
 
 `docker compose` is the supported deployment path and serves frontend and API from one origin. `vercel.json` produces a static frontend build only: its rewrite sends every path to `index.html` and there is no `/api` route, so a static-only host will render the UI but every API call will fail unless you add a rewrite from `/api/*` to a separately hosted backend. When serving the API behind HTTPS, set `COOKIE_SECURE=true` so session cookies carry the `Secure` flag.
 
+### Railway
+
+Railway deploys each Compose service separately. For both the `backend` and `frontend` services, connect this repository, leave **Root Directory** at `/` (the repository root), and set the Dockerfile path under **Build** to `backend/Dockerfile` or `frontend/Dockerfile` respectively. Both Dockerfiles use root-relative `COPY` paths and require the repository root as their build context; setting the root directory to `/backend` or `/frontend` will break the build. Add a Railway MySQL service and run `database/schema.sql` against it once before starting the API.
+
+Set the backend's `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, and `DB_NAME` using the MySQL service's private connection values. Also set `ADMIN_USERNAME`, a unique `ADMIN_PASSWORD` of at least 12 characters, `ADMIN_NAME`, and `COOKIE_SECURE=true`. Name the API service `backend`. On the frontend service, set `BACKEND_HOST=backend.railway.internal`, then generate a public domain for the frontend on port 80. The frontend Docker image defaults `BACKEND_HOST` to `backend` for Docker Compose; its Nginx template substitutes the Railway value at container startup.
+
 VAT is optional and disabled by default. The app does not connect to IRD/CBMS and is not presented as IRD-listed e-billing software.

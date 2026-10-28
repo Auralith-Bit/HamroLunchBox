@@ -72,11 +72,29 @@ There are no seeded or demo logins. The first administrator is created at API st
 
 `docker compose` is the supported deployment path and serves frontend and API from one origin. `vercel.json` produces a static frontend build only: its rewrite sends every path to `index.html` and there is no `/api` route, so a static-only host will render the UI but every API call will fail unless you add a rewrite from `/api/*` to a separately hosted backend. When serving the API behind HTTPS, set `COOKIE_SECURE=true` so session cookies carry the `Secure` flag.
 
-### Railway
+### Render
 
-Railway deploys each Compose service separately. For both the `backend` and `frontend` services, connect this repository, leave **Root Directory** at `/` (the repository root), and set the Dockerfile path under **Build** to `backend/Dockerfile` or `frontend/Dockerfile` respectively. Both Dockerfiles use root-relative `COPY` paths and require the repository root as their build context; setting the root directory to `/backend` or `/frontend` will break the build. Add a Railway PostgreSQL service and run `database/schema.sql` against it once before starting the API.
+Deploy this repository as three Render services: a PostgreSQL database, a backend web service, and a frontend web service. Put them in the same Render region. The backend must be able to receive private-network requests from the frontend; Render Free web services cannot receive those requests, so use a plan that supports inbound private networking for the backend.
 
-Set the backend's `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, and `PGDATABASE` using the PostgreSQL service's private connection variables. Also set `ADMIN_USERNAME`, a unique `ADMIN_PASSWORD` of at least 12 characters, `ADMIN_NAME`, and `COOKIE_SECURE=true`. Name the API service `backend`. On the frontend service, set `BACKEND_HOST=backend.railway.internal`, then generate a public domain for the frontend on port 80. The frontend Docker image defaults `BACKEND_HOST` to `backend` for Docker Compose; its Nginx template substitutes the Railway value at container startup.
+Create a Render PostgreSQL database, then run `database/schema.sql` against it once using its external connection URL and a PostgreSQL client such as `psql` or pgAdmin. Keep the external URL private. Do not use a MySQL database or its connection settings.
+
+Create the backend as a Docker web service connected to this repository. Leave **Root Directory** at the repository root (`.`) and set **Dockerfile Path** to `backend/Dockerfile`. The Dockerfile uses root-relative `COPY` paths, so setting the root directory to `/backend` will break the build. Set `PORT=3000` and these database variables from the Render PostgreSQL database's **internal** connection details:
+
+| Variable | Value |
+|---|---|
+| `PGHOST` | PostgreSQL internal hostname |
+| `PGPORT` | PostgreSQL internal port |
+| `PGUSER` | PostgreSQL username |
+| `PGPASSWORD` | PostgreSQL password |
+| `PGDATABASE` | PostgreSQL database name |
+| `ADMIN_USERNAME` | Initial administrator username |
+| `ADMIN_PASSWORD` | Unique password with at least 12 characters |
+| `ADMIN_NAME` | Administrator display name |
+| `COOKIE_SECURE` | `true` |
+
+Create the frontend as a second Docker web service from the same repository and region. Again, use the repository root (`.`) as **Root Directory** and set **Dockerfile Path** to `frontend/Dockerfile`. In `BACKEND_HOST`, enter the backend's private-network hostname from its Render **Connect** panel (hostname only, without `http://` or a port). The Nginx configuration proxies to port 3000. Generate a public domain for the frontend; users should access the app through that domain.
+
+After both services deploy, open the frontend domain at `/api/health` and confirm it reports a connected database, then sign in with the initial admin credentials. Check the backend deploy logs if the health check fails; common causes are an unapplied schema, incorrect PostgreSQL connection variables, or services in different regions.
 
 Switching from MySQL does not transfer existing data. Back up/export your current business data before deploying and import or enter it in the new PostgreSQL instance; do not delete the old database until that has been verified.
 

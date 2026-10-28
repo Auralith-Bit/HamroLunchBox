@@ -24,9 +24,9 @@ const bootstrapAdmin = async () => {
   const password = String(process.env.ADMIN_PASSWORD || '');
   const name = String(process.env.ADMIN_NAME || 'Administrator').trim();
   if (!username || password.length < 12) throw new Error('Set ADMIN_USERNAME and an ADMIN_PASSWORD of at least 12 characters');
-  const [rows] = await pool.execute("SELECT id FROM users WHERE role='admin' LIMIT 1");
+  const { rows } = await pool.query("SELECT id FROM users WHERE role='admin' LIMIT 1");
   if (rows.length) return;
-  await pool.execute('INSERT INTO users (username,display_name,password_hash,role) VALUES (?,?,?,?)', [username, name, await hashPassword(password), 'admin']);
+  await pool.query('INSERT INTO users (username,display_name,password_hash,role) VALUES ($1,$2,$3,$4)', [username, name, await hashPassword(password), 'admin']);
   console.log(`Initial administrator created: ${username}`);
 };
 
@@ -35,7 +35,7 @@ await pool.query('SELECT 1');
 await bootstrapAdmin();
 
 const pruneSessions = async () => {
-  try { await pool.execute('DELETE FROM sessions WHERE expires_at < NOW()'); }
+  try { await pool.query('DELETE FROM sessions WHERE expires_at < NOW()'); }
   catch (error) { console.error('Session cleanup failed:', error.message); }
 };
 await pruneSessions();

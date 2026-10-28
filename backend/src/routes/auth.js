@@ -26,7 +26,7 @@ router.post('/login', async (req, res, next) => {
 router.post('/logout', requireAuth, async (req, res, next) => {
   try {
     const token = req.headers.cookie?.split(';').map(v => v.trim()).find(v => v.startsWith('hlb_session='))?.slice('hlb_session='.length);
-    if (token) await pool.execute('DELETE FROM sessions WHERE token_hash=?', [hashToken(token)]);
+    if (token) await pool.query('DELETE FROM sessions WHERE token_hash=$1', [hashToken(token)]);
     res.setHeader('Set-Cookie', clearSessionCookie());
     res.json({ ok: true });
   } catch (error) { next(error); }
@@ -44,16 +44,16 @@ router.post('/password', requireAuth, async (req, res, next) => {
     if (newPassword.length < 12 || newPassword.length > 256) return res.status(400).json({ error: 'Choose a new password with at least 12 characters' });
     const user = await login(req.user.username, currentPassword);
     if (!user) return res.status(400).json({ error: 'Current password is incorrect' });
-    await pool.execute('UPDATE users SET password_hash=? WHERE id=?', [await hashPassword(newPassword), req.user.id]);
+    await pool.query('UPDATE users SET password_hash=$1 WHERE id=$2', [await hashPassword(newPassword), req.user.id]);
     const token = req.headers.cookie?.split(';').map(v => v.trim()).find(v => v.startsWith('hlb_session='))?.slice('hlb_session='.length);
-    if (token) await pool.execute('DELETE FROM sessions WHERE user_id=? AND token_hash<>?', [req.user.id, hashToken(token)]);
+    if (token) await pool.query('DELETE FROM sessions WHERE user_id=$1 AND token_hash<>$2', [req.user.id, hashToken(token)]);
     res.json({ ok: true });
   } catch (error) { next(error); }
 });
 
 router.get('/users', requireAuth, allowRoles('admin','reception'), async (_req, res, next) => {
   try {
-    const [users] = await pool.query('SELECT id,username,display_name AS name,role,active,created_at AS createdAt FROM users ORDER BY id');
+    const { rows: users } = await pool.query('SELECT id,username,display_name AS name,role,active,created_at AS "createdAt" FROM users ORDER BY id');
     res.json({ users });
   } catch (error) { next(error); }
 });
@@ -67,10 +67,13 @@ router.post('/users', requireAuth, allowRoles('admin'), async (req, res, next) =
     if (!/^[a-z0-9._-]{3,64}$/.test(username) || !name || name.length > 120 || password.length < 12 || !['admin','reception','delivery'].includes(role)) {
       return res.status(400).json({ error: 'Use a valid username, name, role and a password of at least 12 characters' });
     }
-    const [result] = await pool.execute('INSERT INTO users (username,display_name,password_hash,role) VALUES (?,?,?,?)', [username, name, await hashPassword(password), role]);
-    res.status(201).json({ user: { id: result.insertId, username, name, role, active: 1 } });
+    const { rows } = await pool.query(
+      'INSERT INTO users (username,display_name,password_hash,role) VALUES ($1,$2,$3,$4) RETURNING id',
+      [username, name, await hashPassword(password), role],
+    );
+    res.status(201).json({ user: { id: rows[0].id, username, name, role, active: true } });
   } catch (error) {
-    if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'That username already exists' });
+    if (error.code === '23505') return res.status(409).json({ error: 'That username already exists' });
     next(error);
   }
 });
@@ -78,10 +81,10 @@ router.post('/users', requireAuth, allowRoles('admin'), async (req, res, next) =
 router.patch('/users/:id', requireAuth, allowRoles('admin'), async (req, res, next) => {
   try {
     const active = req.body?.active === true;
-    if (Number(req.params.id) === req.user.id && !active) return res.status(400).json({ error: 'You cannot disable your own account' });
-    const [result] = await pool.execute('UPDATE users SET active=? WHERE id=?', [active, req.params.id]);
-    if (!result.affectedRows) return res.status(404).json({ error: 'User not found' });
-    if (!active) await pool.execute('DELETE FROM sessions WHERE user_id=?', [req.params.id]);
+    if (String(req.params.id) === String(req.user.id) && !active) return res.status(400).json({ error: 'You cannot disable your own account' });
+    const result = await pool.query('UPDATE users SET active=$1 WHERE id=$2', [active, req.params.id]);
+    if (!result.rowCount) return res.status(404).json({ error: 'User not found' });
+    if (!active) await pool.query('DELETE FROM sessions WHERE user_id=$1', [req.params.id]);
     res.json({ ok: true });
   } catch (error) { next(error); }
 });

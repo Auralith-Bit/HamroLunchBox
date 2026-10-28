@@ -1,12 +1,12 @@
-import mysql from 'mysql2/promise';
+import pg from 'pg';
 
-export const pool = mysql.createPool({
-  host: process.env.DB_HOST || '127.0.0.1',
-  port: Number(process.env.DB_PORT || 3306),
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'hamro_lunch_box',
-  waitForConnections: true,
-  connectionLimit: 10,
-  decimalNumbers: true,
+const { Pool } = pg;
+
+export const pool = new Pool({
+  host: process.env.PGHOST || '127.0.0.1',
+  port: Number(process.env.PGPORT || 5432),
+  user: process.env.PGUSER || 'postgres',
+  password: process.env.PGPASSWORD || '',
+  database: process.env.PGDATABASE || 'hamro_lunch_box',
+  max: 10,
 });

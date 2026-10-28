@@ -65,7 +65,7 @@ export function clearSessionCookie() {
 export async function createSession(userId, res) {
   const token = randomBytes(32).toString('base64url');
   const expires = new Date(Date.now() + SESSION_MS);
-  await pool.execute('INSERT INTO sessions (token_hash,user_id,expires_at) VALUES (?,?,?)', [hashToken(token), userId, expires]);
+  await pool.query('INSERT INTO sessions (token_hash,user_id,expires_at) VALUES ($1,$2,$3)', [hashToken(token), userId, expires]);
   res.setHeader('Set-Cookie', sessionCookie(token));
 }
 
@@ -73,9 +73,9 @@ export async function requireAuth(req, res, next) {
   try {
     const token = req.headers.cookie?.split(';').map(v => v.trim()).find(v => v.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1);
     if (!token) return res.status(401).json({ error: 'Sign in required' });
-    const [rows] = await pool.execute(
+    const { rows } = await pool.query(
       `SELECT u.id,u.username,u.display_name AS name,u.role FROM sessions s
-       JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>NOW() AND u.active=1`,
+       JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>NOW() AND u.active=TRUE`,
       [hashToken(token)],
     );
     if (!rows.length) return res.status(401).json({ error: 'Session expired' });
@@ -90,7 +90,7 @@ export function allowRoles(...roles) {
 }
 
 export async function login(username, password) {
-  const [rows] = await pool.execute('SELECT * FROM users WHERE username=? AND active=1', [username]);
+  const { rows } = await pool.query('SELECT * FROM users WHERE username=$1 AND active=TRUE', [username]);
   if (!rows.length || !(await verifyPassword(password, rows[0].password_hash))) return null;
   const { id, username: name, display_name, role } = rows[0];
   return { id, username: name, name: display_name, role };
